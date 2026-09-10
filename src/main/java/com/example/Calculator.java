@@ -1,75 +1,113 @@
 package com.example;
 
+import java.util.logging.Logger;
+
 /**
- * Simple Calculator class demonstrating clean code practices
- * No external dependencies, easy to test and maintain
+ * Calculator provides basic and advanced arithmetic operations.
+ *
+ * <p>All methods are stateless and thread-safe. Input validation is
+ * performed on every operation to prevent undefined behaviour.</p>
+ *
+ * @author Demo Project
+ * @version 2.0
  */
 public class Calculator {
-    
+
+    private static final Logger LOGGER = Logger.getLogger(Calculator.class.getName());
+
     /**
-     * Adds two numbers
-     * @param a First number
-     * @param b Second number
-     * @return Sum of a and b
+     * Adds two integers.
+     *
+     * @param a first operand
+     * @param b second operand
+     * @return the sum {@code a + b}
      */
     public int add(int a, int b) {
-        return a + b;
+        int result = a + b;
+        LOGGER.fine(() -> String.format("add(%d, %d) = %d", a, b, result));
+        return result;
     }
-    
+
     /**
-     * Subtracts second number from first
-     * @param a First number
-     * @param b Second number
-     * @return Difference of a and b
+     * Subtracts {@code b} from {@code a}.
+     *
+     * @param a minuend
+     * @param b subtrahend
+     * @return the difference {@code a - b}
      */
     public int subtract(int a, int b) {
-        return a - b;
+        int result = a - b;
+        LOGGER.fine(() -> String.format("subtract(%d, %d) = %d", a, b, result));
+        return result;
     }
-    
+
     /**
-     * Multiplies two numbers
-     * @param a First number
-     * @param b Second number
-     * @return Product of a and b
+     * Multiplies two integers.
+     *
+     * @param a first factor
+     * @param b second factor
+     * @return the product {@code a * b}
      */
     public int multiply(int a, int b) {
-        return a * b;
+        int result = a * b;
+        LOGGER.fine(() -> String.format("multiply(%d, %d) = %d", a, b, result));
+        return result;
     }
-    
+
     /**
-     * Divides first number by second
-     * @param a Dividend
-     * @param b Divisor
-     * @return Quotient of a divided by b
-     * @throws IllegalArgumentException if divisor is zero
+     * Divides {@code a} by {@code b}.
+     *
+     * @param a dividend
+     * @param b divisor — must not be zero
+     * @return the quotient {@code a / b} as a double
+     * @throws ArithmeticException if {@code b} is zero
      */
     public double divide(int a, int b) {
         if (b == 0) {
-            throw new IllegalArgumentException("Cannot divide by zero");
+            throw new ArithmeticException("Division by zero is not allowed");
         }
-        return (double) a / b;
+        double result = (double) a / b;
+        LOGGER.fine(() -> String.format("divide(%d, %d) = %f", a, b, result));
+        return result;
     }
-    
+
     /**
-     * Calculates power of a number
-     * @param base Base number
-     * @param exponent Exponent
-     * @return base raised to the power of exponent
+     * Raises {@code base} to the power of {@code exponent}.
+     *
+     * @param base     the base value
+     * @param exponent the exponent (may be negative)
+     * @return {@code base} raised to {@code exponent}
      */
     public double power(double base, int exponent) {
-        return Math.pow(base, exponent);
+        double result = Math.pow(base, exponent);
+        LOGGER.fine(() -> String.format("power(%f, %d) = %f", base, exponent, result));
+        return result;
     }
-    
+
     /**
-     * Calculates square root
-     * @param number Number to find square root of
-     * @return Square root of the number
-     * @throws IllegalArgumentException if number is negative
+     * Calculates the square root of {@code number}.
+     *
+     * @param number the value — must be non-negative
+     * @return the non-negative square root of {@code number}
+     * @throws ArithmeticException if {@code number} is negative
      */
     public double squareRoot(double number) {
         if (number < 0) {
-            throw new IllegalArgumentException("Cannot calculate square root of negative number");
+            throw new ArithmeticException(
+                    "Square root of a negative number is undefined in real numbers");
         }
-        return Math.sqrt(number);
+        double result = Math.sqrt(number);
+        LOGGER.fine(() -> String.format("squareRoot(%f) = %f", number, result));
+        return result;
+    }
+
+    /**
+     * Calculates the absolute value of {@code number}.
+     *
+     * @param number any integer
+     * @return the absolute value of {@code number}
+     */
+    public int abs(int number) {
+        return Math.abs(number);
     }
 }

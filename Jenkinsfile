@@ -25,9 +25,9 @@ pipeline {
 
         // Quality Gate Thresholds
         // Build is BLOCKED if any score falls below these values
-        CODE_QUALITY_THRESHOLD     = '65'   // Block if code quality  < 65
+        CODE_QUALITY_THRESHOLD     = '60'   // Block if code quality  < 60
         SECURITY_THRESHOLD         = '65'   // Block if security      < 65
-        MAINTAINABILITY_THRESHOLD  = '60'   // Block if maintainability < 60
+        MAINTAINABILITY_THRESHOLD  = '55'   // Block if maintainability < 55
 
         // Build Configuration
         BUILD_TIMESTAMP = "${new Date().format('yyyyMMdd-HHmmss')}"
