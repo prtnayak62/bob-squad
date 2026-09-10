@@ -253,21 +253,26 @@ def performCodeReview() {
 }
 
 /**
- * Parse and display review results
- * Uses Python (already on agent) to extract JSON values — no plugin needed,
- * no Groovy sandbox restrictions.
+ * Parse JSON text into a Map — runs outside the CPS sandbox so Groovy's
+ * built-in JsonSlurper is fully available with no plugin or approval needed.
+ */
+@NonCPS
+private Map parseJson(String text) {
+    return new groovy.json.JsonSlurper().parseText(text)
+}
+
+/**
+ * Parse and display review results.
+ * readFile() is sandbox-safe; JSON parsing delegated to @NonCPS helper.
  */
 def parseReviewResults() {
-    // Extract scores from JSON using Python — sandbox-safe, zero plugins
-    bat '''
-        @echo off
-        python -c "import json,sys; d=json.load(open('review-report.json')); s=d['scores']; [open(k+'.txt','w').write(str(s[v])) for k,v in [('score_cq','code_quality'),('score_sec','security'),('score_maint','maintainability'),('score_overall','overall')]]"
-    '''
+    def reviewData = parseJson(readFile('review-report.json'))
+    def scores     = reviewData.scores
 
-    env.CODE_QUALITY_SCORE    = readFile('score_cq.txt').trim()
-    env.SECURITY_SCORE        = readFile('score_sec.txt').trim()
-    env.MAINTAINABILITY_SCORE = readFile('score_maint.txt').trim()
-    env.OVERALL_SCORE         = readFile('score_overall.txt').trim()
+    env.CODE_QUALITY_SCORE    = scores.code_quality    as String
+    env.SECURITY_SCORE        = scores.security         as String
+    env.MAINTAINABILITY_SCORE = scores.maintainability  as String
+    env.OVERALL_SCORE         = scores.overall          as String
 
     echo "📈 Review Scores:"
     echo "  - Code Quality:    ${env.CODE_QUALITY_SCORE}/100"
@@ -338,36 +343,27 @@ def determineThresholds() {
 }
 
 /**
- * Process and display quality gate results
- * Uses Python to extract JSON values — sandbox-safe, zero plugins.
+ * Process and display quality gate results.
+ * JSON parsing delegated to @NonCPS helper — no plugin, no sandbox issue.
  */
 def processQualityGateResults() {
-    // Extract status + message from JSON using Python
-    bat '''
-        @echo off
-        python -c "import json; d=json.load(open('quality-gate-result.json')); open('gate_status.txt','w').write(str(d.get('status','UNKNOWN'))); open('gate_message.txt','w').write(str(d.get('message','')))"
-    '''
+    def gateData = parseJson(readFile('quality-gate-result.json'))
 
-    env.QUALITY_GATE_STATUS  = readFile('gate_status.txt').trim()
-    env.QUALITY_GATE_MESSAGE = readFile('gate_message.txt').trim()
+    env.QUALITY_GATE_STATUS  = gateData.status  as String
+    env.QUALITY_GATE_MESSAGE = gateData.message as String
 
     echo "Quality Gate Result: ${env.QUALITY_GATE_STATUS}"
     echo "Message:             ${env.QUALITY_GATE_MESSAGE}"
 
     if (env.QUALITY_GATE_STATUS == 'FAILED') {
         echo "❌ Quality Gate FAILED"
-        // Print failed criteria via Python (sandbox can't iterate JSON arrays)
-        bat '''
-            @echo off
-            python -c "import json; d=json.load(open('quality-gate-result.json')); [print('  -', c) for c in d.get('failed_criteria',[])]"
-        '''
+        echo "Failed Criteria:"
+        (gateData.failed_criteria ?: []).each { echo "  - ${it}" }
         error("Quality Gate Failed - Build cannot proceed")
     } else if (env.QUALITY_GATE_STATUS == 'WARNING') {
         echo "⚠️ Quality Gate PASSED with warnings"
-        bat '''
-            @echo off
-            python -c "import json; d=json.load(open('quality-gate-result.json')); [print('  -', c) for c in d.get('warning_criteria',[])]"
-        '''
+        echo "Warning Criteria:"
+        (gateData.warning_criteria ?: []).each { echo "  - ${it}" }
         echo "ℹ️  Build will continue as SUCCESS despite warnings"
     } else {
         echo "✅ Quality Gate PASSED"
