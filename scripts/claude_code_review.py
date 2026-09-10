@@ -397,25 +397,43 @@ class ClaudeCodeReviewer:
 
         print(f"\n🔍 Extracting JSON from response ({len(full_text)} chars)...")
 
-        # Find opening brace
-        json_start = full_text.find("{")
-        if json_start == -1:
-            raise ValueError(f"No JSON object found in Claude response:\n{full_text[:500]}")
+        if not full_text.strip():
+            raise ValueError("Claude returned an empty response")
 
-        # Match closing brace
-        brace_count = 0
-        json_end = json_start
-        for i in range(json_start, len(full_text)):
-            if full_text[i] == "{":
-                brace_count += 1
-            elif full_text[i] == "}":
-                brace_count -= 1
-                if brace_count == 0:
-                    json_end = i + 1
-                    break
+        # Strip markdown fences if present
+        fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", full_text, re.DOTALL)
+        if fence_match:
+            json_str = fence_match.group(1)
+        else:
+            # Walk braces to find the outermost JSON object
+            json_start = full_text.find("{")
+            if json_start == -1:
+                raise ValueError(f"No JSON object found in Claude response:\n{full_text[:500]}")
 
-        json_str = full_text[json_start:json_end]
-        parsed = json.loads(json_str)
+            brace_count = 0
+            json_end = -1
+            for i in range(json_start, len(full_text)):
+                if full_text[i] == "{":
+                    brace_count += 1
+                elif full_text[i] == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i + 1
+                        break
+
+            if json_end == -1:
+                # Brace walking failed — try to find the last } in the text
+                last_brace = full_text.rfind("}")
+                if last_brace == -1:
+                    raise ValueError(f"No complete JSON object found:\n{full_text[:500]}")
+                json_end = last_brace + 1
+
+            json_str = full_text[json_start:json_end]
+
+        try:
+            parsed = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"JSON parse error: {e}\nExtracted text:\n{json_str[:500]}")
 
         # Validate required keys
         required = {"scores", "issues", "summary", "recommendations"}

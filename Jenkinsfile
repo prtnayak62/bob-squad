@@ -253,26 +253,52 @@ def performCodeReview() {
 }
 
 /**
- * Parse JSON text into a Map — runs outside the CPS sandbox so Groovy's
- * built-in JsonSlurper is fully available with no plugin or approval needed.
+ * Extract score values from review-report.json.
+ * @NonCPS runs outside CPS — JsonSlurper is allowed here.
+ * Returns a plain LinkedHashMap<String,String> which IS serializable
+ * (LazyMap is not — so we explicitly copy to a new LinkedHashMap).
  */
 @NonCPS
-private Map parseJson(String text) {
-    return new groovy.json.JsonSlurper().parseText(text)
+private Map<String,String> extractScores(String jsonText) {
+    def parsed = new groovy.json.JsonSlurper().parseText(jsonText)
+    def s = parsed.scores
+    // Copy primitives into a plain serializable map — never return LazyMap to CPS
+    return [
+        code_quality    : s.code_quality    as String,
+        security        : s.security         as String,
+        maintainability : s.maintainability  as String,
+        overall         : s.overall          as String
+    ]
+}
+
+/**
+ * Extract gate status/message from quality-gate-result.json.
+ * Same @NonCPS + plain-map pattern to avoid NotSerializableException.
+ */
+@NonCPS
+private Map<String,Object> extractGateData(String jsonText) {
+    def parsed = new groovy.json.JsonSlurper().parseText(jsonText)
+    // Collect criteria lists as plain ArrayList<String> — serializable
+    def failed  = (parsed.failed_criteria  ?: []).collect { it as String }
+    def warning = (parsed.warning_criteria ?: []).collect { it as String }
+    return [
+        status           : parsed.status  as String,
+        message          : parsed.message as String,
+        failed_criteria  : failed,
+        warning_criteria : warning
+    ]
 }
 
 /**
  * Parse and display review results.
- * readFile() is sandbox-safe; JSON parsing delegated to @NonCPS helper.
  */
 def parseReviewResults() {
-    def reviewData = parseJson(readFile('review-report.json'))
-    def scores     = reviewData.scores
+    def scores = extractScores(readFile('review-report.json'))
 
-    env.CODE_QUALITY_SCORE    = scores.code_quality    as String
-    env.SECURITY_SCORE        = scores.security         as String
-    env.MAINTAINABILITY_SCORE = scores.maintainability  as String
-    env.OVERALL_SCORE         = scores.overall          as String
+    env.CODE_QUALITY_SCORE    = scores.code_quality
+    env.SECURITY_SCORE        = scores.security
+    env.MAINTAINABILITY_SCORE = scores.maintainability
+    env.OVERALL_SCORE         = scores.overall
 
     echo "📈 Review Scores:"
     echo "  - Code Quality:    ${env.CODE_QUALITY_SCORE}/100"
@@ -344,13 +370,13 @@ def determineThresholds() {
 
 /**
  * Process and display quality gate results.
- * JSON parsing delegated to @NonCPS helper — no plugin, no sandbox issue.
+ * extractGateData() is @NonCPS and returns a plain serializable Map.
  */
 def processQualityGateResults() {
-    def gateData = parseJson(readFile('quality-gate-result.json'))
+    def gateData = extractGateData(readFile('quality-gate-result.json'))
 
-    env.QUALITY_GATE_STATUS  = gateData.status  as String
-    env.QUALITY_GATE_MESSAGE = gateData.message as String
+    env.QUALITY_GATE_STATUS  = gateData.status
+    env.QUALITY_GATE_MESSAGE = gateData.message
 
     echo "Quality Gate Result: ${env.QUALITY_GATE_STATUS}"
     echo "Message:             ${env.QUALITY_GATE_MESSAGE}"
@@ -358,12 +384,13 @@ def processQualityGateResults() {
     if (env.QUALITY_GATE_STATUS == 'FAILED') {
         echo "❌ Quality Gate FAILED"
         echo "Failed Criteria:"
-        (gateData.failed_criteria ?: []).each { echo "  - ${it}" }
+        // criteria is already a plain ArrayList<String> — safe to iterate in CPS
+        gateData.failed_criteria.each { echo "  - ${it}" }
         error("Quality Gate Failed - Build cannot proceed")
     } else if (env.QUALITY_GATE_STATUS == 'WARNING') {
         echo "⚠️ Quality Gate PASSED with warnings"
         echo "Warning Criteria:"
-        (gateData.warning_criteria ?: []).each { echo "  - ${it}" }
+        gateData.warning_criteria.each { echo "  - ${it}" }
         echo "ℹ️  Build will continue as SUCCESS despite warnings"
     } else {
         echo "✅ Quality Gate PASSED"
