@@ -1,0 +1,17 @@
+# Python dependencies for Jenkins Claude AI Agent Pipeline
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+anthropic>=0.40.0
+requests>=2.31.0
+python-dateutil>=2.8.2
+
+# Optional: For enhanced functionality
+pyyaml>=6.0.1
+jinja2>=3.1.2
+
+# Development dependencies (optional)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.7.0
+flake8>=6.1.0

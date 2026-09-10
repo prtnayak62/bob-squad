@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Report - {commit}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 0;
+        }}
+        
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }}
+        
+        .header h1 {{
+            font-size: 2em;
+            margin: 0 0 10px 0;
+        }}
+        
+        .content {{
+            padding: 30px;
+        }}
+        
+        .section {{
+            margin-bottom: 40px;
+        }}
+        
+        .section-title {{
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }}
+        
+        .info-grid {{
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+        }}
+        
+        .info-row {{
+            display: table-row;
+        }}
+        
+        .info-cell {{
+            display: table-cell;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            vertical-align: top;
+        }}
+        
+        .info-label {{
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 5px;
+        }}
+        
+        .info-value {{
+            font-size: 1.1em;
+            color: #333;
+        }}
+        
+        .score-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }}
+        
+        .score-table th {{
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: bold;
+        }}
+        
+        .score-table td {{
+            padding: 15px;
+            border: 1px solid #dee2e6;
+        }}
+        
+        .score-table tr:nth-child(even) {{
+            background: #f8f9fa;
+        }}
+        
+        .score-bar {{
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }}
+        
+        .score-bar-fill {{
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+        }}
+        
+        .score-excellent {{ background: linear-gradient(90deg, #28a745 0%, #20c997 100%) !important; }}
+        .score-good {{ background: linear-gradient(90deg, #17a2b8 0%, #20c997 100%) !important; }}
+        .score-warning {{ background: linear-gradient(90deg, #ffc107 0%, #fd7e14 100%) !important; }}
+        .score-poor {{ background: linear-gradient(90deg, #dc3545 0%, #c82333 100%) !important; }}
+        
+        .chart-grid {{
+            display: table;
+            width: 100%;
+            margin: 20px 0;
+        }}
+        
+        .chart-cell {{
+            display: table-cell;
+            width: 50%;
+            padding: 20px;
+            vertical-align: top;
+        }}
+        
+        .chart-box {{
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #dee2e6;
+        }}
+        
+        .chart-title {{
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 20px;
+        }}
+        
+        .bar-chart-simple {{
+            display: table;
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        
+        .bar-row {{
+            display: table-row;
+        }}
+        
+        .bar-label-cell {{
+            display: table-cell;
+            padding: 10px;
+            font-weight: bold;
+            width: 30%;
+            vertical-align: middle;
+        }}
+        
+        .bar-cell {{
+            display: table-cell;
+            padding: 10px;
+            width: 70%;
+            vertical-align: middle;
+        }}
+        
+        .comparison-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }}
+        
+        .comparison-table th {{
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }}
+        
+        .comparison-table td {{
+            padding: 12px;
+            border: 1px solid #dee2e6;
+        }}
+        
+        .status-badge {{
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.2em;
+            margin: 10px 0;
+        }}
+        
+        .status-passed {{
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #28a745;
+        }}
+        
+        .status-warning {{
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffc107;
+        }}
+        
+        .status-failed {{
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #dc3545;
+        }}
+        
+        .issue-list {{
+            list-style: none;
+            padding: 0;
+        }}
+        
+        .issue-item {{
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #ccc;
+        }}
+        
+        .issue-critical {{ border-left-color: #dc3545; }}
+        .issue-high {{ border-left-color: #fd7e14; }}
+        .issue-medium {{ border-left-color: #ffc107; }}
+        .issue-low {{ border-left-color: #17a2b8; }}
+        
+        .issue-severity {{
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin-right: 10px;
+        }}
+        
+        .severity-critical {{ background: #dc3545; color: white; }}
+        .severity-high {{ background: #fd7e14; color: white; }}
+        .severity-medium {{ background: #ffc107; color: #333; }}
+        .severity-low {{ background: #17a2b8; color: white; }}
+        
+        .recommendations {{
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }}
+        
+        .footer {{
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-radius: 0 0 8px 8px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Pipeline Report</h1>
+            <div>watsonx.ai Code Review & Quality Gate Analysis</div>
+        </div>
+        
+        <div class="content">
+            <!-- Build Information -->
+            <div class="section">
+                <h2 class="section-title">Build Information</h2>
+                <div class="info-grid">
+                    <div class="info-row">
+                        <div class="info-cell">
+                            <div class="info-label">Commit</div>
+                            <div class="info-value">{commit}</div>
+                        </div>
+                        <div class="info-cell">
+                            <div class="info-label">Author</div>
+                            <div class="info-value">{author}</div>
+                        </div>
+                        <div class="info-cell">
+                            <div class="info-label">Timestamp</div>
+                            <div class="info-value">{timestamp}</div>
+                        </div>
+                        <div class="info-cell">
+                            <div class="info-label">Review Depth</div>
+                            <div class="info-value">{review_depth}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quality Scores -->
+            <div class="section">
+                <h2 class="section-title">Quality Scores</h2>
+                <table class="score-table">
+                    <tr>
+                        <th>Metric</th>
+                        <th>Score</th>
+                        <th>Visual</th>
+                    </tr>
+{score_rows}
+                </table>
+            </div>
+            
+            <!-- Charts -->
+            <div class="section">
+                <h2 class="section-title">Score Visualization</h2>
+                <div class="chart-grid">
+                    <div class="chart-cell">
+                        <div class="chart-box">
+                            <div class="chart-title">Score Distribution</div>
+                            <div class="bar-chart-simple">
+{bar_chart}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-cell">
+                        <div class="chart-box">
+                            <div class="chart-title">Quality vs Thresholds</div>
+                            <table class="comparison-table">
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Score</th>
+                                    <th>Threshold</th>
+                                    <th>Status</th>
+                                </tr>
+{comparison_rows}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quality Gate Status -->
+            <div class="section">
+                <h2 class="section-title">Quality Gate Status</h2>
+                <div style="text-align: center;">
+                    <div class="status-badge status-{gate_status_class}">{gate_status_icon} {gate_status}</div>
+                    <p style="margin: 20px 0; font-size: 1.1em;">{gate_message}</p>
+                </div>
+            </div>
+            
+            <!-- Issues Found -->
+            <div class="section">
+                <h2 class="section-title">Issues Found</h2>
+{issues_content}
+            </div>
+            
+            <!-- Recommendations -->
+            <div class="section">
+                <h2 class="section-title">Recommendations</h2>
+                <div class="recommendations">
+                    <ul>
+{recommendations}
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Summary -->
+            <div class="section">
+                <h2 class="section-title">Summary</h2>
+                <p style="font-size: 1.1em; line-height: 1.8;">{summary}</p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            Generated by watsonx.ai Pipeline Integration | {generation_time}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,150 @@
+{
+  "description": "Claude AI Agent Configuration for Code Review",
+  "version": "2.0",
+  "api": {
+    "base_url": "https://api.anthropic.com",
+    "timeout": 120
+  },
+  "model": {
+    "id": "claude-sonnet-4-5",
+    "alternatives": [
+      "claude-3-5-haiku-20241022",
+      "claude-opus-4-5"
+    ],
+    "parameters": {
+      "max_tokens": 4096,
+      "temperature": 0.3
+    }
+  },
+  "agent": {
+    "max_turns": 10,
+    "tools_enabled": true,
+    "tool_names": [
+      "list_changed_files",
+      "get_git_diff",
+      "read_file",
+      "get_file_stats"
+    ]
+  },
+  "review_settings": {
+    "quick": {
+      "description": "Fast review focusing on CRITICAL and HIGH issues only",
+      "focus_areas": ["security", "critical_bugs"]
+    },
+    "standard": {
+      "description": "Balanced review covering quality, security, and best practices",
+      "focus_areas": ["security", "code_quality", "best_practices"]
+    },
+    "comprehensive": {
+      "description": "Deep analysis including performance, architecture, and test coverage",
+      "focus_areas": ["security", "code_quality", "performance", "architecture", "maintainability"]
+    }
+  },
+  "analysis_rules": {
+    "security": {
+      "enabled": true,
+      "checks": [
+        "hardcoded_credentials",
+        "sql_injection",
+        "xss_vulnerabilities",
+        "insecure_dependencies",
+        "weak_cryptography",
+        "authentication_issues",
+        "authorization_flaws"
+      ]
+    },
+    "code_quality": {
+      "enabled": true,
+      "checks": [
+        "code_complexity",
+        "duplicate_code",
+        "dead_code",
+        "code_smells",
+        "naming_conventions",
+        "function_length",
+        "class_size"
+      ]
+    },
+    "best_practices": {
+      "enabled": true,
+      "checks": [
+        "error_handling",
+        "logging_practices",
+        "documentation",
+        "test_coverage",
+        "design_patterns",
+        "solid_principles"
+      ]
+    },
+    "performance": {
+      "enabled": true,
+      "checks": [
+        "inefficient_algorithms",
+        "memory_leaks",
+        "resource_management",
+        "database_queries",
+        "caching_opportunities"
+      ]
+    },
+    "maintainability": {
+      "enabled": true,
+      "checks": [
+        "code_readability",
+        "modularity",
+        "coupling",
+        "cohesion",
+        "technical_debt"
+      ]
+    }
+  },
+  "file_filters": {
+    "include_patterns": [
+      "*.java",
+      "*.py",
+      "*.js",
+      "*.ts",
+      "*.jsx",
+      "*.tsx",
+      "*.go",
+      "*.rb",
+      "*.php",
+      "*.cs",
+      "*.cpp",
+      "*.c",
+      "*.h"
+    ],
+    "exclude_patterns": [
+      "*.min.js",
+      "*.bundle.js",
+      "node_modules/**",
+      "vendor/**",
+      "dist/**",
+      "build/**",
+      "target/**",
+      "*.test.js",
+      "*.spec.js"
+    ],
+    "max_file_size_kb": 500
+  },
+  "scoring": {
+    "weights": {
+      "security": 0.4,
+      "code_quality": 0.3,
+      "maintainability": 0.2,
+      "performance": 0.1
+    },
+    "severity_impact": {
+      "critical": -30,
+      "high": -15,
+      "medium": -5,
+      "low": -2
+    }
+  },
+  "output": {
+    "format": "json",
+    "include_recommendations": true,
+    "include_code_snippets": true,
+    "max_issues_per_severity": 50,
+    "group_by": "file"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "description": "Quality Gate Thresholds Configuration",
+  "version": "1.0",
+  "thresholds": {
+    "code_quality": {
+      "value": 70,
+      "description": "Minimum code quality score (0-100)",
+      "severity": "HIGH"
+    },
+    "security": {
+      "value": 80,
+      "description": "Minimum security score (0-100)",
+      "severity": "CRITICAL"
+    },
+    "maintainability": {
+      "value": 75,
+      "description": "Minimum maintainability score (0-100)",
+      "severity": "MEDIUM"
+    }
+  },
+  "profiles": {
+    "strict": {
+      "code_quality": 85,
+      "security": 90,
+      "maintainability": 85
+    },
+    "standard": {
+      "code_quality": 70,
+      "security": 80,
+      "maintainability": 75
+    },
+    "lenient": {
+      "code_quality": 60,
+      "security": 70,
+      "maintainability": 65
+    }
+  },
+  "issue_limits": {
+    "critical": {
+      "max_allowed": 0,
+      "description": "Maximum number of critical issues allowed"
+    },
+    "high": {
+      "max_allowed": 2,
+      "description": "Maximum number of high severity issues allowed"
+    },
+    "medium": {
+      "max_allowed": 5,
+      "description": "Maximum number of medium severity issues allowed"
+    },
+    "low": {
+      "max_allowed": 10,
+      "description": "Maximum number of low severity issues allowed"
+    }
+  },
+  "enforcement": {
+    "block_on_critical": true,
+    "block_on_threshold_failure": true,
+    "allow_override": false,
+    "require_approval_on_warning": false
+  },
+  "notifications": {
+    "on_failure": {
+      "enabled": true,
+      "recipients": ["team@example.com"],
+      "channels": ["email", "slack"]
+    },
+    "on_warning": {
+      "enabled": true,
+      "recipients": ["team@example.com"],
+      "channels": ["email"]
+    },
+    "on_success": {
+      "enabled": false,
+      "recipients": [],
+      "channels": []
+    }
+  }
+}
