@@ -6,6 +6,7 @@ Creates HTML reports with simple visual elements that work in Jenkins
 """
 
 import argparse
+import html as html_mod   # GUARDRAIL: HTML-escape all untrusted content
 import json
 import sys
 import os
@@ -128,29 +129,35 @@ class ReportGenerator:
         return rows
     
     def generate_issue_html(self, issue: Dict[str, Any]) -> str:
-        """Generate HTML for an issue"""
+        """Generate HTML for an issue — all dynamic content is HTML-escaped (GUARDRAIL)."""
         severity = issue.get('severity', 'MEDIUM').upper()
+        # Whitelist severity to a known safe value to prevent class injection
+        if severity not in ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'):
+            severity = 'MEDIUM'
         severity_class = f"severity-{severity.lower()}"
         issue_class = f"issue-{severity.lower()}"
-        
-        html = f"""
+
+        # GUARDRAIL: escape all untrusted values before embedding in HTML
+        safe_file    = html_mod.escape(str(issue.get('file', 'N/A')))
+        safe_message = html_mod.escape(str(issue.get('message', 'No description')))
+        safe_rec     = html_mod.escape(str(issue.get('recommendation', '')))
+
+        result = f"""
                 <li class="issue-item {issue_class}">
                     <div>
                         <span class="issue-severity {severity_class}">{severity}</span>
-                        <span style="color: #667eea; font-family: monospace;">{issue.get('file', 'N/A')}</span>
+                        <span style="color: #667eea; font-family: monospace;">{safe_file}</span>
                     </div>
-                    <div style="margin: 10px 0;">{issue.get('message', 'No description')}</div>
+                    <div style="margin: 10px 0;">{safe_message}</div>
 """
-        
-        if issue.get('recommendation'):
-            html += f"""
+        if safe_rec:
+            result += f"""
                     <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 10px;">
-                        <strong>Recommendation:</strong> {issue['recommendation']}
+                        <strong>Recommendation:</strong> {safe_rec}
                     </div>
 """
-        
-        html += "                </li>\n"
-        return html
+        result += "                </li>\n"
+        return result
     
     def generate_report(self, review_data: Dict[str, Any], gate_data: Dict[str, Any],
                        commit: str, author: str, output_file: str):

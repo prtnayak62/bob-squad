@@ -14,15 +14,48 @@ Agentic loop:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List
 
 import anthropic
+
+# ---------------------------------------------------------------------------
+# GUARDRAILS — security constants
+# ---------------------------------------------------------------------------
+
+# Maximum bytes read from any single file into Claude context (512 KB)
+_MAX_FILE_BYTES = 512 * 1024
+
+# Maximum number of tool calls allowed in one agentic loop (prevents runaway)
+_MAX_TOOL_CALLS = 30
+
+# Allowed git-hash pattern — only hex chars, 7–64 chars (short or full SHA)
+_COMMIT_RE = re.compile(r'^[0-9a-f]{7,64}$', re.IGNORECASE)
+
+# Allowed file extensions for the read_file tool
+_ALLOWED_READ_EXTS = {
+    '.java', '.py', '.js', '.ts', '.jsx', '.tsx',
+    '.kt', '.scala', '.go', '.rs', '.cpp', '.c', '.h',
+    '.rb', '.php', '.cs', '.swift', '.sql',
+}
+
+# Directories that are never allowed to be read (absolute safety net)
+_FORBIDDEN_PATH_PREFIXES = (
+    os.sep + 'etc' + os.sep,
+    os.sep + 'windows' + os.sep,
+    os.sep + 'programdata' + os.sep,
+    os.sep + 'users' + os.sep,    # blocks reading outside workspace
+    '.jenkins',
+    '.ssh',
+    '.git' + os.sep,
+)
 
 # Fix Windows console encoding for emojis
 if sys.platform == 'win32':
@@ -143,7 +176,66 @@ class ClaudeCodeReviewer:
         self.client = anthropic.Anthropic(**client_kwargs)
         self.model = model
         self.review_depth = "STANDARD"
-        self.max_turns = 15   # safety cap on the agentic loop
+        self.max_turns = 15          # max LLM turns
+        self._tool_call_count = 0    # guardrail: total tool calls this session
+        # Workspace root — all file reads must stay inside this directory
+        self._workspace = Path(os.getcwd()).resolve()
+
+    # ------------------------------------------------------------------
+    # GUARDRAIL: path safety validation
+    # ------------------------------------------------------------------
+
+    def _safe_path(self, file_path: str) -> Path:
+        """
+        Resolve file_path and verify it is:
+          1. Inside the current workspace (no path traversal)
+          2. Not in a forbidden directory
+          3. Has an allowed extension
+        Raises ValueError with a safe message on any violation.
+        """
+        # Reject obvious shell-injection attempts
+        if any(c in file_path for c in (';', '|', '&', '$', '`', '\n', '\r')):
+            raise ValueError(f"GUARDRAIL: illegal characters in path: {file_path!r}")
+
+        resolved = (self._workspace / file_path).resolve()
+
+        # Must stay within workspace
+        try:
+            resolved.relative_to(self._workspace)
+        except ValueError:
+            raise ValueError(
+                f"GUARDRAIL: path traversal blocked — '{file_path}' escapes workspace"
+            )
+
+        # Must not be inside a forbidden directory
+        lower = str(resolved).lower()
+        for forbidden in _FORBIDDEN_PATH_PREFIXES:
+            if forbidden.lower() in lower:
+                raise ValueError(
+                    f"GUARDRAIL: access to forbidden path blocked: {file_path!r}"
+                )
+
+        # Must have an allowed extension
+        ext = resolved.suffix.lower()
+        if ext not in _ALLOWED_READ_EXTS:
+            raise ValueError(
+                f"GUARDRAIL: extension '{ext}' not in allowed list for file: {file_path!r}"
+            )
+
+        return resolved
+
+    # ------------------------------------------------------------------
+    # GUARDRAIL: commit hash validation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _safe_commit(commit: str) -> str:
+        """Validate commit looks like a git hash — rejects shell injection."""
+        if not _COMMIT_RE.match(commit):
+            raise ValueError(
+                f"GUARDRAIL: invalid commit hash '{commit}' — only hex chars allowed"
+            )
+        return commit
 
     # ------------------------------------------------------------------
     # Tool executor — called whenever Claude requests a tool
@@ -151,19 +243,31 @@ class ClaudeCodeReviewer:
 
     def _execute_tool(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
         """Execute the requested tool and return the result as a string."""
+        # Guardrail: hard cap on total tool calls to prevent runaway loops
+        self._tool_call_count += 1
+        if self._tool_call_count > _MAX_TOOL_CALLS:
+            return (f"GUARDRAIL: tool call limit ({_MAX_TOOL_CALLS}) exceeded. "
+                    "Stop calling tools and produce the final JSON review now.")
         try:
             if tool_name == "list_changed_files":
-                return self._tool_list_changed_files(tool_input["commit"])
+                return self._tool_list_changed_files(
+                    self._safe_commit(tool_input["commit"]))
             elif tool_name == "list_source_files":
                 return self._tool_list_source_files()
             elif tool_name == "get_git_diff":
-                return self._tool_get_git_diff(tool_input["commit"], tool_input["file_path"])
+                return self._tool_get_git_diff(
+                    self._safe_commit(tool_input["commit"]),
+                    tool_input["file_path"])
             elif tool_name == "read_file":
                 return self._tool_read_file(tool_input["file_path"])
             elif tool_name == "get_file_stats":
                 return self._tool_get_file_stats(tool_input["file_path"])
             else:
-                return f"ERROR: Unknown tool '{tool_name}'"
+                return f"GUARDRAIL: unknown tool '{tool_name}' — ignored"
+        except ValueError as e:
+            # Guardrail violations are returned as errors to Claude, not raised
+            print(f"   🛡️  {e}")
+            return str(e)
         except Exception as e:
             return f"ERROR executing {tool_name}: {str(e)}"
 
@@ -250,33 +354,53 @@ class ClaudeCodeReviewer:
             return f"git error: {e.stderr}"
 
     def _tool_read_file(self, file_path: str) -> str:
+        # GUARDRAIL: validate path before any disk access
+        safe = self._safe_path(file_path)
+
+        if not safe.exists():
+            return f"File not found: {file_path}"
+
+        # GUARDRAIL: enforce max file size
+        size = safe.stat().st_size
+        if size > _MAX_FILE_BYTES:
+            return (f"GUARDRAIL: file too large ({size:,} bytes > {_MAX_FILE_BYTES:,} limit). "
+                    f"Use get_file_stats to inspect it instead.")
+
         for encoding in ["utf-8", "latin-1"]:
             try:
-                with open(file_path, "r", encoding=encoding) as f:
-                    return f.read()
+                content = safe.read_text(encoding=encoding)
+                # GUARDRAIL: strip prompt-injection preambles that try to override the system prompt
+                if "ignore previous instructions" in content.lower() or \
+                   "disregard all prior" in content.lower() or \
+                   "you are now" in content.lower()[:500]:
+                    print(f"   🛡️  Prompt-injection pattern detected in {file_path} — content sanitised")
+                    content = "[GUARDRAIL: suspicious content redacted]\n" + content[500:]
+                return content
             except UnicodeDecodeError:
                 continue
-            except FileNotFoundError:
-                return f"File not found: {file_path}"
             except Exception as e:
                 return f"Error reading file: {str(e)}"
         try:
-            with open(file_path, "rb") as f:
-                return f.read().decode("utf-8", errors="replace")
+            return safe.read_bytes().decode("utf-8", errors="replace")
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
     def _tool_get_file_stats(self, file_path: str) -> str:
+        # GUARDRAIL: validate path before any disk access
         try:
-            stat = os.stat(file_path)
-            with open(file_path, "rb") as f:
+            safe = self._safe_path(file_path)
+        except ValueError as e:
+            return json.dumps({"error": str(e)})
+        try:
+            stat = safe.stat()
+            with safe.open("rb") as f:
                 line_count = sum(1 for _ in f)
-            ext = os.path.splitext(file_path)[1]
             return json.dumps({
                 "file_path": file_path,
-                "extension": ext,
+                "extension": safe.suffix,
                 "size_bytes": stat.st_size,
-                "line_count": line_count
+                "line_count": line_count,
+                "too_large": stat.st_size > _MAX_FILE_BYTES
             })
         except FileNotFoundError:
             return json.dumps({"error": f"File not found: {file_path}"})
