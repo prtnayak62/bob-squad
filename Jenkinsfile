@@ -256,19 +256,21 @@ def performCodeReview() {
  * Parse and display review results
  */
 def parseReviewResults() {
-    def reviewData = readJSON file: 'review-report.json'
-    
-    env.CODE_QUALITY_SCORE = reviewData.scores.code_quality
-    env.SECURITY_SCORE = reviewData.scores.security
-    env.MAINTAINABILITY_SCORE = reviewData.scores.maintainability
-    env.OVERALL_SCORE = reviewData.scores.overall
-    
+    // readJSON requires pipeline-utility-steps plugin — use pure Groovy instead
+    def reviewData = new groovy.json.JsonSlurperClassic()
+                        .parseText(readFile('review-report.json'))
+
+    env.CODE_QUALITY_SCORE    = reviewData.scores.code_quality  as String
+    env.SECURITY_SCORE        = reviewData.scores.security       as String
+    env.MAINTAINABILITY_SCORE = reviewData.scores.maintainability as String
+    env.OVERALL_SCORE         = reviewData.scores.overall        as String
+
     echo "📈 Review Scores:"
-    echo "  - Code Quality: ${env.CODE_QUALITY_SCORE}/100"
-    echo "  - Security: ${env.SECURITY_SCORE}/100"
+    echo "  - Code Quality:    ${env.CODE_QUALITY_SCORE}/100"
+    echo "  - Security:        ${env.SECURITY_SCORE}/100"
     echo "  - Maintainability: ${env.MAINTAINABILITY_SCORE}/100"
-    echo "  - Overall: ${env.OVERALL_SCORE}/100"
-    
+    echo "  - Overall:         ${env.OVERALL_SCORE}/100"
+
     archiveArtifacts artifacts: 'review-report.json', fingerprint: true
 }
 
@@ -335,33 +337,34 @@ def determineThresholds() {
  * Process and display quality gate results
  */
 def processQualityGateResults() {
-    def gateData = readJSON file: 'quality-gate-result.json'
-    
-    env.QUALITY_GATE_STATUS = gateData.status
-    env.QUALITY_GATE_MESSAGE = gateData.message
-    
+    // readJSON requires pipeline-utility-steps plugin — use pure Groovy instead
+    def gateData = new groovy.json.JsonSlurperClassic()
+                        .parseText(readFile('quality-gate-result.json'))
+
+    env.QUALITY_GATE_STATUS  = gateData.status  as String
+    env.QUALITY_GATE_MESSAGE = gateData.message as String
+
     echo "Quality Gate Result: ${env.QUALITY_GATE_STATUS}"
-    echo "Message: ${env.QUALITY_GATE_MESSAGE}"
-    
+    echo "Message:             ${env.QUALITY_GATE_MESSAGE}"
+
     if (env.QUALITY_GATE_STATUS == 'FAILED') {
         echo "❌ Quality Gate FAILED"
-        echo "\nFailed Criteria:"
-        gateData.failed_criteria.each { criterion ->
+        echo "Failed Criteria:"
+        (gateData.failed_criteria ?: []).each { criterion ->
             echo "  - ${criterion}"
         }
         error("Quality Gate Failed - Build cannot proceed")
     } else if (env.QUALITY_GATE_STATUS == 'WARNING') {
         echo "⚠️ Quality Gate PASSED with warnings"
-        echo "\nWarning Criteria:"
-        gateData.warning_criteria.each { criterion ->
+        echo "Warning Criteria:"
+        (gateData.warning_criteria ?: []).each { criterion ->
             echo "  - ${criterion}"
         }
-        // Don't mark as unstable - just log the warnings
         echo "ℹ️  Build will continue as SUCCESS despite warnings"
     } else {
         echo "✅ Quality Gate PASSED"
     }
-    
+
     archiveArtifacts artifacts: 'quality-gate-result.json', fingerprint: true
 }
 
