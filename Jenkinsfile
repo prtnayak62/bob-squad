@@ -22,12 +22,13 @@ pipeline {
         CLAUDE_API_KEY = credentials('claude-api-key')
         CLAUDE_MODEL = 'claude-sonnet-4-6'
         CLAUDE_BASE_URL = 'https://api.nextgen-beta.ica.ibm.com/ica'
-        
-        // Quality Gate Thresholds - Adjust based on project requirements
-        CODE_QUALITY_THRESHOLD = '70'
-        SECURITY_THRESHOLD = '80'
-        MAINTAINABILITY_THRESHOLD = '60'  // Lowered to allow current code to pass
-        
+
+        // Quality Gate Thresholds
+        // Build is BLOCKED if any score falls below these values
+        CODE_QUALITY_THRESHOLD     = '70'   // Block if code quality  < 70
+        SECURITY_THRESHOLD         = '80'   // Block if security      < 80
+        MAINTAINABILITY_THRESHOLD  = '60'   // Block if maintainability < 60
+
         // Build Configuration
         BUILD_TIMESTAMP = "${new Date().format('yyyyMMdd-HHmmss')}"
     }
@@ -83,18 +84,20 @@ pipeline {
             steps {
                 script {
                     echo "🚦 Evaluating Quality Gate..."
+                    echo "   Thresholds — Code Quality: ${CODE_QUALITY_THRESHOLD}, Security: ${SECURITY_THRESHOLD}, Maintainability: ${MAINTAINABILITY_THRESHOLD}"
                     try {
                         evaluateQualityGate()
                     } catch (Exception e) {
-                        // Store the error but don't fail yet - let report generate first
+                        // Store error — generate report first so the HTML shows WHY it failed
                         env.QUALITY_GATE_ERROR = e.getMessage()
-                        echo "⚠️ Quality Gate failed, but continuing to generate report..."
+                        echo "❌ Quality Gate FAILED — report will still be generated"
                     }
                 }
             }
         }
-        
+
         stage('Build') {
+            // Skipped automatically if quality gate failed
             when {
                 expression { env.QUALITY_GATE_STATUS != 'FAILED' }
             }
@@ -105,8 +108,9 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Test') {
+            // Skipped automatically if quality gate failed
             when {
                 expression { env.QUALITY_GATE_STATUS != 'FAILED' }
             }
@@ -117,16 +121,17 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Generate Report') {
             steps {
                 script {
-                    echo "📄 Generating comprehensive report..."
+                    echo "📄 Generating report for commit ${env.GIT_COMMIT_SHORT}..."
                     generateReport()
-                    
-                    // Now check if Quality Gate failed and fail the build AFTER report is generated
+
+                    // Fail the build AFTER the report is generated
+                    // so the HTML report always shows what went wrong
                     if (env.QUALITY_GATE_ERROR) {
-                        error(env.QUALITY_GATE_ERROR)
+                        error("🚫 BUILD BLOCKED — ${env.QUALITY_GATE_ERROR}")
                     }
                 }
             }
