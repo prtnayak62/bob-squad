@@ -55,6 +55,20 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "list_source_files",
+        "description": (
+            "Returns all source code files (*.java, *.py, *.js, *.ts) tracked in the "
+            "repository, regardless of what changed in this commit. Use this when the "
+            "changed files contain no reviewable source code (e.g. only config or "
+            "pipeline files changed) so you can still review the application code."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
         "name": "get_git_diff",
         "description": (
             "Returns the unified diff for a specific file in the given commit. "
@@ -140,6 +154,8 @@ class ClaudeCodeReviewer:
         try:
             if tool_name == "list_changed_files":
                 return self._tool_list_changed_files(tool_input["commit"])
+            elif tool_name == "list_source_files":
+                return self._tool_list_source_files()
             elif tool_name == "get_git_diff":
                 return self._tool_get_git_diff(tool_input["commit"], tool_input["file_path"])
             elif tool_name == "read_file":
@@ -188,6 +204,24 @@ class ClaudeCodeReviewer:
             )
             files = [f for f in result.stdout.strip().split("\n") if f]
             return "\n".join(files) if files else "No files found."
+        except subprocess.CalledProcessError as e:
+            return f"git error: {e.stderr}"
+
+    def _tool_list_source_files(self) -> str:
+        """List all tracked source code files (.java .py .js .ts) in the repo."""
+        SOURCE_EXTS = {".java", ".py", ".js", ".ts"}
+        try:
+            result = subprocess.run(
+                ["git", "ls-files"],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", check=True
+            )
+            files = [
+                f for f in result.stdout.strip().split("\n")
+                if f and os.path.splitext(f)[1] in SOURCE_EXTS
+                and not f.startswith("scripts/")  # skip the pipeline scripts themselves
+            ]
+            return "\n".join(files) if files else "No source files found."
         except subprocess.CalledProcessError as e:
             return f"git error: {e.stderr}"
 
@@ -268,11 +302,14 @@ class ClaudeCodeReviewer:
             "You are an expert code review agent with deep knowledge of software engineering "
             "best practices, security, and clean code principles.\n\n"
             "Your workflow:\n"
-            "1. Use list_changed_files to discover which files changed.\n"
-            "2. Read ONLY the source code files that need review (*.java, *.py, *.js, *.ts). "
-            "Skip README, documentation, config, and template files.\n"
-            "3. After reading at most 5 source files, stop calling tools and produce the JSON.\n"
-            "4. Do NOT read every file in the repo — focus on changed source code only.\n\n"
+            "1. Call list_changed_files to see what changed in this commit.\n"
+            "2. Filter that list to source code files only (*.java, *.py, *.js, *.ts).\n"
+            "   - SKIP: Jenkinsfile, *.groovy, *.json, *.xml, *.md, *.bat, *.sh, *.txt, "
+            "*.properties, *.yaml, *.yml — these are pipeline/config files, NOT application code.\n"
+            "3. If NO source files were changed in this commit, call list_source_files to get "
+            "all application source files in the repo, then read those instead.\n"
+            "4. Read at most 5 source files, then stop and produce the JSON review.\n\n"
+            "Score the APPLICATION SOURCE CODE quality (Java/Python/JS/TS files), not pipeline files.\n\n"
             "Output your final answer as VALID JSON ONLY — no preamble, no markdown fences, no extra text.\n\n"
             "The JSON MUST have exactly these top-level keys:\n"
             "  scores        → object with code_quality, security, maintainability, overall (0-100)\n"
@@ -286,9 +323,11 @@ class ClaudeCodeReviewer:
             f"Review commit: {commit}\n"
             f"Review depth: {review_depth}\n"
             f"Instructions: {depth_instructions.get(review_depth, depth_instructions['STANDARD'])}\n\n"
-            "1. Call list_changed_files first.\n"
-            "2. Read only the source code files (Java, Python, JS, TS).\n"
-            "3. After reading those files, immediately output the JSON review. Do not read more files."
+            "Step 1: Call list_changed_files to see what changed.\n"
+            "Step 2: If the changed files are only pipeline/config files (Jenkinsfile, *.json, "
+            "*.xml, *.md, *.bat etc.), call list_source_files to get the application source code.\n"
+            "Step 3: Read the source code files (*.java, *.py, *.js, *.ts) and review them.\n"
+            "Step 4: Output the JSON review of the APPLICATION CODE quality."
         )
 
         messages: List[Dict[str, Any]] = [{"role": "user", "content": user_message}]

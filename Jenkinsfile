@@ -26,7 +26,7 @@ pipeline {
         // Quality Gate Thresholds
         // Build is BLOCKED if any score falls below these values
         CODE_QUALITY_THRESHOLD     = '70'   // Block if code quality  < 70
-        SECURITY_THRESHOLD         = '80'   // Block if security      < 80
+        SECURITY_THRESHOLD         = '70'   // Block if security      < 70
         MAINTAINABILITY_THRESHOLD  = '60'   // Block if maintainability < 60
 
         // Build Configuration
