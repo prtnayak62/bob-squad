@@ -1,0 +1,22 @@
+# Generated pipeline output - do not commit
+review-report.json
+quality-gate-result.json
+pipeline-report.html
+build-history.json
+history-report.json
+
+# Temp files
+commit_short.txt
+commit_author.txt
+direct-test-report.html
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Java build output
+target/
+*.class
+*.jar
